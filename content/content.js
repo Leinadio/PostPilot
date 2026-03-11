@@ -143,6 +143,14 @@
               `).join('')}
             </div>
           </div>
+          <div class="pp-option-row">
+            <span class="pp-option-label">Longueur</span>
+            <div class="pp-toggle-group" id="pp-longueur">
+              ${Object.entries(LONGUEUR_OPTIONS).map(([key, opt]) => `
+                <button class="pp-toggle${key === 'court' ? ' active' : ''}" data-value="${key}">${opt.label}</button>
+              `).join('')}
+            </div>
+          </div>
         </div>
         <div class="pp-section-label">Approche</div>
         <div class="pp-types" id="pp-types">
@@ -177,6 +185,7 @@
     let currentType = null;
     let currentRegistre = 'neutre';
     let currentExpression = 'neutre';
+    let currentLongueur = 'court';
 
     shadow.querySelector('.pp-close').addEventListener('click', () => {
       host.remove(); activePanel = null;
@@ -198,17 +207,25 @@
       currentExpression = btn.dataset.value;
     });
 
+    shadow.getElementById('pp-longueur').addEventListener('click', (e) => {
+      const btn = e.target.closest('.pp-toggle');
+      if (!btn) return;
+      shadow.querySelectorAll('#pp-longueur .pp-toggle').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      currentLongueur = btn.dataset.value;
+    });
+
     shadow.querySelectorAll('.pp-type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         currentType = btn.dataset.type;
         shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent, currentRegistre, currentExpression);
+        generateComment(shadow, currentType, postContent, currentRegistre, currentExpression, currentLongueur);
       });
     });
 
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentRegistre, currentExpression);
+      if (currentType) generateComment(shadow, currentType, postContent, currentRegistre, currentExpression, currentLongueur);
     });
 
     shadow.getElementById('pp-insert').addEventListener('click', () => {
@@ -218,13 +235,13 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentRegistre, currentExpression);
+      if (currentType) generateComment(shadow, currentType, postContent, currentRegistre, currentExpression, currentLongueur);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent, registre, expression) {
+  async function generateComment(shadow, type, postContent, registre, expression, longueur) {
     const typesGrid = shadow.getElementById('pp-types');
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
@@ -237,7 +254,7 @@
     commentBox.style.display = 'none';
     errorBox.style.display = 'none';
 
-    const prompt = buildPrompt(type, postContent, registre, expression);
+    const prompt = buildPrompt(type, postContent, registre, expression, longueur);
     if (!prompt) return;
 
     try {

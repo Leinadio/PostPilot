@@ -14,14 +14,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function handleGenerateComment({ system, user }) {
-  const result = await chrome.storage.local.get(['anthropic_api_key']);
-  const apiKey = result.anthropic_api_key;
-
-  if (!apiKey) {
-    throw new Error('API_KEY_MISSING');
-  }
-
+async function callAPI(apiKey, system, user, maxTokens) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -32,7 +25,7 @@ async function handleGenerateComment({ system, user }) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
+      max_tokens: maxTokens,
       system: system,
       messages: [
         { role: 'user', content: user }
@@ -49,11 +42,29 @@ async function handleGenerateComment({ system, user }) {
   }
 
   const data = await response.json();
-  const comment = data.content?.[0]?.text?.trim();
+  const text = data.content?.[0]?.text?.trim();
 
-  if (!comment) {
-    throw new Error('No comment generated');
+  if (!text) {
+    throw new Error('No response generated');
   }
+
+  return text;
+}
+
+async function handleGenerateComment({ step1, step2 }) {
+  const result = await chrome.storage.local.get(['anthropic_api_key']);
+  const apiKey = result.anthropic_api_key;
+
+  if (!apiKey) {
+    throw new Error('API_KEY_MISSING');
+  }
+
+  // Step 1: Generate raw comment (content + tone)
+  const rawComment = await callAPI(apiKey, step1.system, step1.user, 300);
+
+  // Step 2: Apply formatting + length constraints
+  const step2User = step2.userTemplate.replace('{{RAW_COMMENT}}', rawComment);
+  const comment = await callAPI(apiKey, step2.system, step2User, 200);
 
   return { comment };
 }
