@@ -7,7 +7,7 @@ Extension Chrome Manifest V3 (vanilla JS, pas de framework, pas de build step).
 ### Fichiers
 
 - `manifest.json` - Config extension, content scripts chargés en séquence, permissions (storage, activeTab, linkedin, anthropic API)
-- `lib/prompts.js` - BASE_RULES, COMMENT_APPROACHES, REGISTRE_OPTIONS, EXPRESSION_OPTIONS, buildPrompt()
+- `lib/prompts.js` - RULES_CRITICAL, RULES_CORE, COMMENT_APPROACHES, TON_OPTIONS, buildPrompt(), buildResizePrompt()
 - `content/content.js` - Injection UI LinkedIn (Shadow DOM), panel, detection posts via MutationObserver, insertion commentaires
 - `content/styles.css` - Styles du bouton trigger PostPilot (externe au Shadow DOM)
 - `background/service-worker.js` - Appels API Claude Sonnet, reçoit {system, user} de buildPrompt()
@@ -17,9 +17,9 @@ Extension Chrome Manifest V3 (vanilla JS, pas de framework, pas de build step).
 
 1. `content.js` detecte les posts LinkedIn via les boutons "menu de commandes" (aria-label), remonte de 2 niveaux pour trouver la post card
 2. Un bouton "PostPilot" est injecté dans la barre d'actions de chaque post (à côté de Commenter/Republier)
-3. Au clic, un panel Shadow DOM s'ouvre avec les sélecteurs registre/expression et la grille des 8 approches
-4. L'utilisateur choisit registre + expression + approche
-5. `buildPrompt(type, postContent, registre, expression)` construit {system, user}
+3. Au clic, un panel Shadow DOM s'ouvre avec le sélecteur ton et la grille des 8 approches
+4. L'utilisateur choisit ton + approche
+5. `buildPrompt(type, postContent, ton)` construit {system, user}
 6. Le message est envoyé au service worker via `chrome.runtime.sendMessage`
 7. Le service worker appelle l'API Claude et renvoie le commentaire
 8. Le commentaire s'affiche dans le panel, l'utilisateur peut insérer, régénérer, ou changer d'approche
@@ -48,70 +48,44 @@ Extension Chrome Manifest V3 (vanilla JS, pas de framework, pas de build step).
 | `opinion_franche` | Opinion franche | Prise de position directe | Ancré dans du concret (observation, logique, bon sens) |
 | `legerete` | Légèreté | Observation malicieuse et bienveillante | PAS humour noir/moqueur/sarcasme, sourire complice, 1-2 phrases max |
 
-### Registre (contextuel, choisi à chaque commentaire, défaut = neutre)
+### Ton (contextuel, choisi à chaque commentaire, défaut = neutre)
 
 | Clé | Label | Comportement |
 |-----|-------|-------------|
-| `tutoiement` | Tutoiement | Comme un collègue qu'on connaît bien |
-| `vouvoiement` | Vouvoiement | Formel mais ton oral/naturel quand même |
-| `neutre` | Neutre | INTERDIT d'utiliser tu/toi/vous/votre. Tout en impersonnel ou 3e personne |
+| `familier` | Familier | Tutoiement, décontracté, comme un ami ou collègue proche |
+| `pro` | Pro | Vouvoiement, professionnel mais oral et naturel, pas guindé |
+| `neutre` | Neutre | Formulations impersonnelles, aucune adresse directe à l'auteur |
 
-### Expression (contextuelle, choisie à chaque commentaire, défaut = neutre)
-
-| Clé | Label | Comportement |
-|-----|-------|-------------|
-| `je` | Je | Première personne, point de vue personnel (mais JAMAIS de faux vécu) |
-| `tu_vous` | Tu / Vous | S'adresser directement à l'auteur |
-| `neutre` | Neutre | Le "je" n'est PAS le moteur. Formulations impersonnelles en priorité. Un "je" isolé peut passer |
-
-### Combinaison des prompts
+### Architecture des prompts (sandwich XML)
 
 `buildPrompt()` assemble le system prompt dans cet ordre :
-1. systemPrompt de l'approche (qui inclut déjà BASE_RULES via template literal)
-2. prompt du registre
-3. prompt de l'expression
+1. `RULES_CRITICAL` (formatage + authenticité) — position haute attention
+2. `<approche>` instructions spécifiques — position middle
+3. `RULES_CORE` (contenu + indépendance + style + posture, inclut règle de longueur) — position haute attention
+4. `<ton>` prompt du ton choisi
 
-Le user prompt contient le post + les instructions de raisonnement + un rappel formatage renforcé.
+Le user prompt contient le post (wrappé dans `<post>` tags) + instruction de raisonnement + rappels formatage/indépendance/ton renforcés avec "sera rejeté".
 
-## Regles de ton (BASE_RULES)
+## Regles (6 blocs XML)
 
-### Posture
+Les règles sont organisées en 6 blocs XML sémantiques, répartis en deux groupes pour éviter le "lost in the middle".
 
-- Pair-à-pair. Affirmer son point de vue OK, mais JAMAIS corriger l'auteur ou donner l'impression qu'on sait mieux
-- TOUJOURS bienveillant, même si le post original est provocateur/jugeant. Ne jamais reproduire un ton critique. Rebondir sur le positif
-- Pas d'ironie condescendante, pas de sarcasme
-- Pas de conclusions à la place de l'auteur ("ça veut dire que ton vrai problème c'est...")
-- Pas de ton corporate creux ("Il est essentiel de...", "Force à toi", "Les synergies...")
-- Ne pas paraphraser le post. Réagir au fond sans recopier la forme
-- Première phrase direct dans le vif. Interdits en ouverture ("Super post", "Merci pour le partage", "Tellement vrai", etc.)
+### RULES_CRITICAL (top du system prompt, haute attention)
 
-### Authenticite
+- `<formatage>` — Zéro hashtag, émoji, tiret cadratin, tiret demi-cadratin, deux-points. "sera rejeté" pour enforcement
+- `<authenticite>` — Pas de passé, mémoire, relations. Formulé comme principe, pas comme liste (Claude contourne les listes)
 
-- L'IA n'a PAS de passé, pas de mémoire, pas de relations, pas d'entourage
-- JAMAIS de faux vécu, faux souvenirs, fausses observations personnelles, fausses anecdotes
-- La règle est formulée comme un principe ("tu n'as pas de passé") plutôt qu'une liste de formulations interdites, car Claude contourne les listes
-- S'applique à TOUTES les expressions (je, tu/vous, neutre)
+### RULES_CORE (bottom du system prompt, haute attention)
 
-### Ton
+- `<contenu>` — Identifier le point clé, première phrase = idée originale, chaque phrase apporte du concret
+- `<independance>` — Ne reprendre ni mots ni expressions du post. Commentaire trop générique = rejeté
+- `<style>` — Réagir pas analyser, pas de structure visible, mots simples, varier les tournures
+- `<posture>` — Pair pas expert, affirmer OK mais jamais corriger, pas de catégorisation, toujours bienveillant
 
-- Oral et naturel, comme un collègue. Vocabulaire du quotidien ("en vrai", "clairement", "le truc c'est que", "franchement", "genre")
-- Ça vaut aussi en vouvoiement. Vouvoyer ne veut pas dire être guindé
-- Varier les structures et tournures. Pas de formulations béquilles répétitives ("je me demande si", "le vrai problème c'est")
-- Spécifique. Pas de compliments vagues
+### Renforcement multi-couche
 
-### Formatage (interdits absolus, sans exception)
-
-- Zéro tiret cadratin (—)
-- Zéro tiret demi-cadratin (–)
-- Zéro emoji
-- Zéro deux-points (:)
-- Zéro hashtag
-- Ces interdits sont renforcés dans le user prompt aussi (avec "sera rejeté"), car le system prompt seul ne suffit pas
-- Le user prompt lui-même ne doit PAS contenir ces caractères (Claude imite ce qu'il voit)
-
-### Longueur
-
-- Dépend du contexte. 1 phrase si suffisant, 2-3 phrases max. La concision est reine
+- Les règles critiques apparaissent dans le system prompt (RULES_CRITICAL/RULES_CORE) ET dans le user prompt (rappels avec "sera rejeté")
+- Le user prompt ne contient PAS les caractères interdits (Claude imite ce qu'il voit)
 
 ## Prompt engineering - Lecons apprises
 
@@ -127,9 +101,9 @@ Le user prompt ne doit jamais contenir de caractères interdits. Si le prompt ut
 
 Pour les interdits comportementaux (faux vécu), formuler un principe ("tu n'as pas de passé") est plus robuste qu'une liste de formulations interdites. Claude contourne les listes en trouvant des variantes.
 
-### Renforcement multi-couche
+### Architecture sandwich (lost in the middle)
 
-Les règles critiques doivent apparaître à la fois dans le system prompt (BASE_RULES) ET dans le user prompt (rappel formatage). Une seule couche ne suffit pas.
+Les règles les plus violées sont positionnées en début (RULES_CRITICAL) et fin (RULES_CORE) du system prompt, car les LLMs ont une attention maximale à ces positions. Les instructions d'approche sont au milieu, où elles sont bien respectées de toute façon.
 
 ## Decisions de design
 
@@ -138,7 +112,7 @@ Les règles critiques doivent apparaître à la fois dans le system prompt (BASE
 | 8 approches basées sur réactions naturelles | 6 stratégies artificielles (ancien système) | Plus ancré dans le comportement réel LinkedIn |
 | Pas de "vécu perso" comme approche | Vécu perso, mini-profil, amorce à compléter | L'IA inventerait du faux vécu |
 | "Rebond concret" au lieu de "vécu perso" | Anecdote personnelle | L'IA apporte un fait externe sans prétendre que c'est son vécu |
-| Registre + expression contextuels | Réglage permanent | Ça dépend du post et de l'auteur |
+| Ton (Familier/Pro/Neutre) fusionné depuis registre+expression | Registre + Expression séparés | Trop de combinaisons contradictoires, une seule dimension suffit |
 | Ton oral toujours, même en vouvoiement | Ton formel en vouvoiement | Plus authentique LinkedIn |
 | Affirmer OK, jamais corriger | Pair-à-pair strict (jamais affirmer) | Affirmer son point de vue est différent de juger |
 | Pas de génération phrase-par-phrase | Génération incrémentale | La longueur dépend du contexte, mieux géré par prompt |
@@ -147,6 +121,9 @@ Les règles critiques doivent apparaître à la fois dans le system prompt (BASE
 | Principe "pas de passé" vs liste de formulations | Liste exhaustive de formulations | Claude contourne les listes, le principe est plus robuste |
 | Interdits formatage dans system + user prompt | Seulement dans system prompt | Claude ne respectait pas les interdits du system prompt seul |
 | Ton bienveillant même face à un post provoc | Reproduire le ton du post | Le commentaire ne doit jamais rabaisser, même si le post le fait |
+| Architecture sandwich XML (rules critical top + core bottom) | 17 règles plates dans BASE_RULES | Lost in the middle, les règles 8-14 n'étaient pas respectées |
+| User prompt sans caractères interdits | Montrer (:) (—) (–) dans le user prompt | Claude imite ce qu'il voit dans le prompt |
+| Raccourcir/Allonger post-génération | Paramètre longueur pré-génération | Ajuster après avoir vu le résultat est plus naturel et évite les contradictions avec les règles |
 
 ## UI Panel
 
@@ -157,9 +134,8 @@ Le panel est un Shadow DOM attaché à un div `.postpilot-panel-host`, inséré 
 ### Layout
 
 1. Header (titre + bouton fermeture X)
-2. Options (deux lignes de toggles pills)
-   - Registre (Tutoiement / Vouvoiement / **Neutre**)
-   - Expression (Je / Tu-Vous / **Neutre**)
+2. Options (une ligne de toggles pills)
+   - Ton (Familier / Pro / **Neutre**)
 3. Label "Approche"
 4. Grille 4 colonnes x 2 rangées (8 approches, chacune avec emoji + label + description)
 5. Zone résultat (loading spinner / commentaire + boutons Insérer/Régénérer / erreur + Réessayer)
@@ -170,5 +146,6 @@ Le panel est un Shadow DOM attaché à un div `.postpilot-panel-host`, inséré 
 - Le panel ne se ferme QUE via le bouton X (pas au clic extérieur)
 - Cliquer une approche lance la génération immédiatement
 - Après génération, la grille d'approches réapparaît pour permettre de changer d'approche
-- Régénérer relance avec les mêmes paramètres (approche + registre + expression)
-- Les toggles registre/expression peuvent être changés entre deux générations
+- Deux boutons "↓ Court" / "↑ Long" permettent de raccourcir ou allonger le commentaire (appel API séparé via buildResizePrompt)
+- Régénérer relance avec les mêmes paramètres (approche + ton)
+- Le toggle ton peut être changé entre deux générations
