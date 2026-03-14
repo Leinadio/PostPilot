@@ -101,17 +101,29 @@
   function onTriggerClick(postCard, triggerBtn) {
     if (activePanel) { activePanel.remove(); activePanel = null; }
 
-    const postContent = extractPostContent(postCard);
-    if (!postContent) {
-      showToast('Impossible de lire le contenu du post.');
-      return;
+    // Auto-expand truncated posts ("… plus" / "…see more")
+    const seeMoreBtn = Array.from(postCard.querySelectorAll('button')).find(b => {
+      const t = b.textContent.trim().toLowerCase();
+      return t.length < 20 && (t.endsWith('plus') || t.endsWith('see more') || t.endsWith('more'));
+    });
+    if (seeMoreBtn) {
+      seeMoreBtn.click();
+      log('Auto-expanded post');
     }
 
-    log('Post:', postContent.substring(0, 80) + '...');
-    const panel = createPanel(postContent, postCard);
-    // Insert panel after the action bar (end of post card)
-    postCard.appendChild(panel);
-    activePanel = panel;
+    // Small delay to let LinkedIn expand the content
+    setTimeout(() => {
+      const postContent = extractPostContent(postCard);
+      if (!postContent) {
+        showToast('Impossible de lire le contenu du post.');
+        return;
+      }
+
+      log('Post:', postContent.substring(0, 80) + '...');
+      const panel = createPanel(postContent, postCard);
+      postCard.appendChild(panel);
+      activePanel = panel;
+    }, seeMoreBtn ? 300 : 0);
   }
 
   function createPanel(postContent, postCard) {
@@ -125,6 +137,10 @@
         <div class="pp-header">
           <span class="pp-title">✨ PostPilot</span>
           <button class="pp-close">&times;</button>
+        </div>
+        <div class="pp-voice-toggle">
+          <button class="pp-voice-btn selected" data-voice="je">Je</button>
+          <button class="pp-voice-btn" data-voice="neutre">Neutre</button>
         </div>
         <div class="pp-section-label">Approche</div>
         <div class="pp-types" id="pp-types">
@@ -163,8 +179,18 @@
     `;
 
     let currentType = null;
+    let currentVoice = 'je';
+
     shadow.querySelector('.pp-close').addEventListener('click', () => {
       host.remove(); activePanel = null;
+    });
+
+    shadow.querySelectorAll('.pp-voice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentVoice = btn.dataset.voice;
+        shadow.querySelectorAll('.pp-voice-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
     });
 
     shadow.querySelectorAll('.pp-type-btn').forEach(btn => {
@@ -172,12 +198,12 @@
         currentType = btn.dataset.type;
         shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent);
+        generateComment(shadow, currentType, postContent, currentVoice);
       });
     });
 
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent);
+      if (currentType) generateComment(shadow, currentType, postContent, currentVoice);
     });
 
     shadow.getElementById('pp-shorter').addEventListener('click', () => {
@@ -197,13 +223,13 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent);
+      if (currentType) generateComment(shadow, currentType, postContent, currentVoice);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent) {
+  async function generateComment(shadow, type, postContent, voice) {
     const typesGrid = shadow.getElementById('pp-types');
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
@@ -216,7 +242,7 @@
     commentBox.style.display = 'none';
     errorBox.style.display = 'none';
 
-    const prompt = buildPrompt(type, postContent);
+    const prompt = buildPrompt(type, postContent, voice);
     if (!prompt) return;
 
     try {
@@ -357,6 +383,10 @@
       .pp-title { font-size:15px; font-weight:700; color:#0a66c2; }
       .pp-close { background:none; border:none; font-size:22px; color:#666; cursor:pointer; padding:4px 8px; border-radius:4px; }
       .pp-close:hover { background:#f3f3f3; }
+      .pp-voice-toggle { display:flex; gap:4px; margin-bottom:12px; }
+      .pp-voice-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
+      .pp-voice-btn:hover { border-color:#0a66c2; color:#0a66c2; }
+      .pp-voice-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
       .pp-section-label { font-size:12px; font-weight:600; color:#666; margin-bottom:8px; }
       .pp-types { display:flex; flex-direction:column; gap:6px; }
       .pp-type-btn { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e0e0e0; border-radius:8px; background:#fafafa; cursor:pointer; transition:all .15s; text-align:left; }
