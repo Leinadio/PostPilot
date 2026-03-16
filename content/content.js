@@ -6,19 +6,15 @@
   function log(...args) { console.log(LOG, ...args); }
 
   // --- Post Detection ---
-  // LinkedIn 2025+ uses obfuscated classes. We identify posts via their
-  // "menu de commandes" button (aria-label pattern) and walk up 2 levels.
 
   function findPosts() {
     const menuButtons = document.querySelectorAll('button[aria-label*="menu de commandes pour le post"], button[aria-label*="control menu for post"]');
 
     let count = 0;
     menuButtons.forEach(menuBtn => {
-      // Post card is 2 levels up from the menu button
       const postCard = menuBtn.parentElement?.parentElement;
       if (!postCard || postCard.getAttribute(PROCESSED_ATTR)) return;
 
-      // Verify this is a real post card (should have P tag with text, and action buttons)
       const hasText = postCard.querySelector('p');
       const hasActionBtn = Array.from(postCard.querySelectorAll('button')).some(b =>
         b.textContent.trim() === 'Commenter' || b.textContent.trim() === 'Comment'
@@ -36,7 +32,6 @@
   // --- Extract Post Text ---
 
   function extractPostContent(postCard) {
-    // Find the longest <p> text — skip author name/headline inside <a> or <button>
     const pTags = postCard.querySelectorAll('p');
     let bestText = null;
     let bestLen = 0;
@@ -49,7 +44,6 @@
 
     if (bestText && bestLen > 20) return bestText;
 
-    // Fallback: look for span[dir] with substantial text
     const spans = postCard.querySelectorAll('span[dir]');
     for (const s of spans) {
       const text = s.textContent.trim();
@@ -62,7 +56,6 @@
   // --- Button Injection ---
 
   function injectButton(postCard) {
-    // Find the action bar: the div containing J'aime/Commenter/Republier buttons
     const allChildren = Array.from(postCard.children);
     let actionBar = null;
 
@@ -89,7 +82,6 @@
     });
 
     if (actionBar) {
-      // Add as last child inside the action bar (next to Republier/Envoyer)
       actionBar.appendChild(btn);
     } else {
       postCard.appendChild(btn);
@@ -101,7 +93,6 @@
   function onTriggerClick(postCard, triggerBtn) {
     if (activePanel) { activePanel.remove(); activePanel = null; }
 
-    // Auto-expand truncated posts ("… plus" / "…see more")
     const seeMoreBtn = Array.from(postCard.querySelectorAll('button')).find(b => {
       const t = b.textContent.trim().toLowerCase();
       return t.length < 20 && (t.endsWith('plus') || t.endsWith('see more') || t.endsWith('more'));
@@ -111,7 +102,6 @@
       log('Auto-expanded post');
     }
 
-    // Small delay to let LinkedIn expand the content
     setTimeout(() => {
       const postContent = extractPostContent(postCard);
       if (!postContent) {
@@ -138,21 +128,31 @@
           <span class="pp-title">✨ PostPilot</span>
           <button class="pp-close">&times;</button>
         </div>
-        <div class="pp-voice-toggle">
-          <button class="pp-voice-btn selected" data-voice="je">Je</button>
-          <button class="pp-voice-btn" data-voice="neutre">Neutre</button>
+        <div class="pp-toggles">
+          <div class="pp-voice-toggle">
+            <button class="pp-voice-btn selected" data-voice="je">Je</button>
+            <button class="pp-voice-btn" data-voice="neutre">Neutre</button>
+          </div>
+          <div class="pp-polarity-toggle">
+            <button class="pp-polarity-btn selected" data-polarity="affirmative">Affirmative</button>
+            <button class="pp-polarity-btn" data-polarity="negative">Négative</button>
+          </div>
         </div>
-        <div class="pp-section-label">Approche</div>
         <div class="pp-types" id="pp-types">
-          ${Object.entries(COMMENT_APPROACHES).map(([key, approach]) => `
-            <button class="pp-type-btn" data-type="${key}">
-              <span class="pp-type-emoji">${approach.emoji}</span>
-              <span class="pp-type-info">
-                <span class="pp-type-label">${approach.label}</span>
-                <span class="pp-type-desc">${approach.description}</span>
-              </span>
-            </button>
-          `).join('')}
+          ${PILIER_ORDER.map(pilier => {
+            const entries = Object.entries(COMMENT_CATEGORIES).filter(([_, c]) => c.pilier === pilier);
+            if (!entries.length) return '';
+            return `<div class="pp-pilier-label">${PILIER_LABELS[pilier]}</div>` +
+              entries.map(([key, category]) => `
+                <button class="pp-type-btn" data-type="${key}">
+                  <span class="pp-type-emoji">${category.emoji}</span>
+                  <span class="pp-type-info">
+                    <span class="pp-type-label">${category.label}</span>
+                    <span class="pp-type-desc">${category.description}</span>
+                  </span>
+                </button>
+              `).join('');
+          }).join('')}
         </div>
         <div class="pp-result" id="pp-result" style="display:none;">
           <div class="pp-loading" id="pp-loading">
@@ -180,6 +180,7 @@
 
     let currentType = null;
     let currentVoice = 'je';
+    let currentPolarity = 'affirmative';
 
     shadow.querySelector('.pp-close').addEventListener('click', () => {
       host.remove(); activePanel = null;
@@ -193,17 +194,25 @@
       });
     });
 
+    shadow.querySelectorAll('.pp-polarity-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentPolarity = btn.dataset.polarity;
+        shadow.querySelectorAll('.pp-polarity-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+
     shadow.querySelectorAll('.pp-type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
         currentType = btn.dataset.type;
         shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent, currentVoice);
+        generateComment(shadow, currentType, postContent, currentVoice, currentPolarity);
       });
     });
 
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentVoice);
+      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity);
     });
 
     shadow.getElementById('pp-shorter').addEventListener('click', () => {
@@ -223,13 +232,13 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentVoice);
+      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent, voice) {
+  async function generateComment(shadow, type, postContent, voice, polarity) {
     const typesGrid = shadow.getElementById('pp-types');
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
@@ -242,7 +251,8 @@
     commentBox.style.display = 'none';
     errorBox.style.display = 'none';
 
-    const prompt = buildPrompt(type, postContent, voice);
+    const examples = await getAllExamples();
+    const prompt = buildPrompt(type, postContent, voice, polarity, examples);
     if (!prompt) return;
 
     try {
@@ -258,9 +268,9 @@
         return;
       }
 
-      shadow.getElementById('pp-comment-text').textContent = response.comment;
+      shadow.getElementById('pp-comment-text').textContent = response.comment.replace(/\n\n+/g, '\n');
       commentBox.style.display = 'block';
-      typesGrid.style.display = 'grid';
+      typesGrid.style.display = 'flex';
     } catch (err) {
       loading.style.display = 'none';
       showError(shadow, err.message);
@@ -293,7 +303,7 @@
         return;
       }
 
-      shadow.getElementById('pp-comment-text').textContent = response.comment;
+      shadow.getElementById('pp-comment-text').textContent = response.comment.replace(/\n\n+/g, '\n');
       commentBox.style.display = 'block';
     } catch (err) {
       loading.style.display = 'none';
@@ -317,7 +327,7 @@
 
     errorText.textContent = message;
     errorBox.style.display = 'block';
-    typesGrid.style.display = 'grid';
+    typesGrid.style.display = 'flex';
   }
 
   // --- Comment Insertion ---
@@ -329,13 +339,11 @@
     if (commentBtn) commentBtn.click();
 
     setTimeout(() => {
-      // Find the comment editor near this post
       const editors = document.querySelectorAll(
         '.ql-editor, div[contenteditable="true"][role="textbox"], div[contenteditable="true"][data-placeholder]'
       );
 
       let editor = null;
-      // Pick the editor closest to this post
       const postRect = postCard.getBoundingClientRect();
       let minDist = Infinity;
       editors.forEach(ed => {
@@ -351,8 +359,13 @@
         return;
       }
 
-      const p = editor.querySelector('p');
-      if (p) { p.textContent = text; } else { editor.textContent = text; }
+      const lines = text.split('\n').filter(l => l.trim());
+      editor.innerHTML = '';
+      lines.forEach(line => {
+        const p = document.createElement('p');
+        p.textContent = line;
+        editor.appendChild(p);
+      });
 
       editor.dispatchEvent(new Event('input', { bubbles: true }));
       editor.focus();
@@ -383,11 +396,13 @@
       .pp-title { font-size:15px; font-weight:700; color:#0a66c2; }
       .pp-close { background:none; border:none; font-size:22px; color:#666; cursor:pointer; padding:4px 8px; border-radius:4px; }
       .pp-close:hover { background:#f3f3f3; }
-      .pp-voice-toggle { display:flex; gap:4px; margin-bottom:12px; }
-      .pp-voice-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
-      .pp-voice-btn:hover { border-color:#0a66c2; color:#0a66c2; }
-      .pp-voice-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
-      .pp-section-label { font-size:12px; font-weight:600; color:#666; margin-bottom:8px; }
+      .pp-toggles { display:flex; gap:12px; margin-bottom:12px; }
+      .pp-voice-toggle, .pp-polarity-toggle { display:flex; gap:4px; }
+      .pp-voice-btn, .pp-polarity-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
+      .pp-voice-btn:hover, .pp-polarity-btn:hover { border-color:#0a66c2; color:#0a66c2; }
+      .pp-voice-btn.selected, .pp-polarity-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
+      .pp-pilier-label { font-size:11px; font-weight:700; color:#0a66c2; text-transform:uppercase; letter-spacing:0.5px; margin:12px 0 6px; }
+      .pp-pilier-label:first-child { margin-top:0; }
       .pp-types { display:flex; flex-direction:column; gap:6px; }
       .pp-type-btn { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e0e0e0; border-radius:8px; background:#fafafa; cursor:pointer; transition:all .15s; text-align:left; }
       .pp-type-btn:hover { border-color:#0a66c2; background:#f0f7ff; }
