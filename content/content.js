@@ -138,6 +138,14 @@
             <button class="pp-polarity-btn" data-polarity="negative">Négative</button>
           </div>
         </div>
+        <div class="pp-word-count">
+          <div class="pp-word-count-header">
+            <label>Nombre de mots</label>
+            <input type="number" class="pp-word-input" id="pp-word-input" min="1" max="150" value="30" />
+          </div>
+          <input type="range" class="pp-word-slider" id="pp-word-slider" min="1" max="150" value="30" />
+          <div class="pp-word-label" id="pp-word-label">Sweet spot — meilleur ratio engagement/effort</div>
+        </div>
         <div class="pp-types" id="pp-types">
           ${PILIER_ORDER.map(pilier => {
             const entries = Object.entries(COMMENT_CATEGORIES).filter(([_, c]) => c.pilier === pilier);
@@ -181,6 +189,47 @@
     let currentType = null;
     let currentVoice = 'je';
     let currentPolarity = 'affirmative';
+    let currentWordCount = 30;
+
+    const wordSlider = shadow.getElementById('pp-word-slider');
+    const wordInput = shadow.getElementById('pp-word-input');
+    const wordLabel = shadow.getElementById('pp-word-label');
+
+    function getWordLabel(count) {
+      if (count <= 5) return 'Réaction brute — visibilité rapide, +likes';
+      if (count <= 15) return 'Une phrase — se faire remarquer sans effort';
+      if (count <= 35) return 'Sweet spot — meilleur ratio engagement/effort';
+      if (count <= 60) return 'Développé — montre ton expertise, +vues de profil';
+      if (count <= 100) return 'Détaillé — génère des réponses et des connexions';
+      return 'Long format — risque de ne pas être lu entièrement';
+    }
+
+    function updateWordCount(value) {
+      currentWordCount = Math.max(1, Math.min(150, parseInt(value) || 30));
+      wordSlider.value = currentWordCount;
+      wordInput.value = currentWordCount;
+      wordLabel.textContent = getWordLabel(currentWordCount);
+    }
+
+    wordSlider.addEventListener('input', () => updateWordCount(wordSlider.value));
+    wordInput.addEventListener('input', () => updateWordCount(wordInput.value));
+
+    // Set default from examples avg
+    getExamplesForCategory(null).then(examples => {
+      if (examples && examples.length > 0) {
+        var stats = getExamplesWordStats(examples);
+        updateWordCount(stats.avg);
+      }
+    });
+
+    shadow.querySelectorAll('.pp-type-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentType = btn.dataset.type;
+        shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+        generateComment(shadow, currentType, postContent, currentVoice, currentPolarity, currentWordCount);
+      });
+    });
 
     shadow.querySelector('.pp-close').addEventListener('click', () => {
       host.remove(); activePanel = null;
@@ -202,17 +251,8 @@
       });
     });
 
-    shadow.querySelectorAll('.pp-type-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        currentType = btn.dataset.type;
-        shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent, currentVoice, currentPolarity);
-      });
-    });
-
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity);
+      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity, currentWordCount);
     });
 
     shadow.getElementById('pp-shorter').addEventListener('click', () => {
@@ -232,13 +272,13 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity);
+      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity, currentWordCount);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent, voice, polarity) {
+  async function generateComment(shadow, type, postContent, voice, polarity, wordCount) {
     const typesGrid = shadow.getElementById('pp-types');
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
@@ -251,8 +291,8 @@
     commentBox.style.display = 'none';
     errorBox.style.display = 'none';
 
-    const examples = await getAllExamples();
-    const prompt = buildPrompt(type, postContent, voice, polarity, examples);
+    const examples = await getExamplesForCategory(type);
+    const prompt = buildPrompt(type, postContent, voice, polarity, examples, wordCount);
     if (!prompt) return;
 
     try {
@@ -401,6 +441,14 @@
       .pp-voice-btn, .pp-polarity-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
       .pp-voice-btn:hover, .pp-polarity-btn:hover { border-color:#0a66c2; color:#0a66c2; }
       .pp-voice-btn.selected, .pp-polarity-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
+      .pp-word-count { margin-bottom:12px; }
+      .pp-word-count-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
+      .pp-word-count-header label { font-size:12px; font-weight:600; color:#333; }
+      .pp-word-input { width:52px; padding:4px 6px; border:1px solid #e0e0e0; border-radius:6px; font-size:12px; text-align:center; color:#333; font-weight:600; }
+      .pp-word-input:focus { outline:none; border-color:#0a66c2; }
+      .pp-word-slider { width:100%; height:4px; -webkit-appearance:none; appearance:none; background:#e0e0e0; border-radius:2px; outline:none; cursor:pointer; }
+      .pp-word-slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:#0a66c2; cursor:pointer; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.2); }
+      .pp-word-label { font-size:11px; color:#666; margin-top:4px; font-style:italic; }
       .pp-pilier-label { font-size:11px; font-weight:700; color:#0a66c2; text-transform:uppercase; letter-spacing:0.5px; margin:12px 0 6px; }
       .pp-pilier-label:first-child { margin-top:0; }
       .pp-types { display:flex; flex-direction:column; gap:6px; }
