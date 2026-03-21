@@ -164,8 +164,11 @@
         </div>
         <div class="pp-result" id="pp-result" style="display:none;">
           <div class="pp-loading" id="pp-loading">
-            <div class="pp-spinner"></div>
-            <span>Claude réfléchit...</span>
+            <div class="pp-skeleton">
+              <div class="pp-skeleton-line pp-skeleton-long"></div>
+              <div class="pp-skeleton-line pp-skeleton-medium"></div>
+              <div class="pp-skeleton-line pp-skeleton-short"></div>
+            </div>
           </div>
           <div class="pp-comment-box" id="pp-comment-box" style="display:none;">
             <p class="pp-comment-text" id="pp-comment-text"></p>
@@ -279,21 +282,43 @@
   }
 
   async function generateComment(shadow, type, postContent, voice, polarity, wordCount) {
-    const typesGrid = shadow.getElementById('pp-types');
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
     const commentBox = shadow.getElementById('pp-comment-box');
     const errorBox = shadow.getElementById('pp-error');
 
-    typesGrid.style.display = 'none';
+    const allTypeBtns = shadow.querySelectorAll('.pp-type-btn');
+    const allVoiceBtns = shadow.querySelectorAll('.pp-voice-btn');
+    const allPolarityBtns = shadow.querySelectorAll('.pp-polarity-btn');
+    const wordSliderEl = shadow.getElementById('pp-word-slider');
+    const wordInputEl = shadow.getElementById('pp-word-input');
+
+    const disableAll = () => {
+      allTypeBtns.forEach(b => { b.disabled = true; b.classList.add('pp-type-btn-disabled'); });
+      allVoiceBtns.forEach(b => { b.disabled = true; b.classList.add('pp-toggle-disabled'); });
+      allPolarityBtns.forEach(b => { b.disabled = true; b.classList.add('pp-toggle-disabled'); });
+      wordSliderEl.disabled = true; wordSliderEl.classList.add('pp-slider-disabled');
+      wordInputEl.disabled = true; wordInputEl.classList.add('pp-input-disabled');
+    };
+
+    const enableAll = () => {
+      allTypeBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-type-btn-disabled'); });
+      allVoiceBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-toggle-disabled'); });
+      allPolarityBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-toggle-disabled'); });
+      wordSliderEl.disabled = false; wordSliderEl.classList.remove('pp-slider-disabled');
+      wordInputEl.disabled = false; wordInputEl.classList.remove('pp-input-disabled');
+    };
+
+    disableAll();
+
     resultArea.style.display = 'block';
-    loading.style.display = 'flex';
+    loading.style.display = 'block';
     commentBox.style.display = 'none';
     errorBox.style.display = 'none';
 
     const examples = await getExamplesForCategory(type);
     const prompt = buildPrompt(type, postContent, voice, polarity, examples, wordCount);
-    if (!prompt) return;
+    if (!prompt) { enableAll(); return; }
 
     try {
       const response = await chrome.runtime.sendMessage({
@@ -302,6 +327,7 @@
       });
 
       loading.style.display = 'none';
+      enableAll();
 
       if (response.error) {
         showError(shadow, response.error);
@@ -310,9 +336,9 @@
 
       shadow.getElementById('pp-comment-text').textContent = response.comment.replace(/\n\n+/g, '\n');
       commentBox.style.display = 'block';
-      typesGrid.style.display = 'flex';
     } catch (err) {
       loading.style.display = 'none';
+      enableAll();
       showError(shadow, err.message);
     }
   }
@@ -354,7 +380,6 @@
   function showError(shadow, errorMsg) {
     const errorBox = shadow.getElementById('pp-error');
     const errorText = shadow.getElementById('pp-error-text');
-    const typesGrid = shadow.getElementById('pp-types');
 
     let message = 'Une erreur est survenue.';
     if (errorMsg === 'API_KEY_MISSING') {
@@ -367,7 +392,6 @@
 
     errorText.textContent = message;
     errorBox.style.display = 'block';
-    typesGrid.style.display = 'flex';
   }
 
   // --- Comment Insertion ---
@@ -453,16 +477,24 @@
       .pp-pilier-label:first-child { margin-top:0; }
       .pp-types { display:flex; flex-direction:column; gap:6px; }
       .pp-type-btn { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e0e0e0; border-radius:8px; background:#fafafa; cursor:pointer; transition:all .15s; text-align:left; }
-      .pp-type-btn:hover { border-color:#0a66c2; background:#f0f7ff; }
+      .pp-type-btn:hover:not(.pp-type-btn-disabled) { border-color:#0a66c2; background:#f0f7ff; }
       .pp-type-btn.selected { border-color:#0a66c2; background:#e8f0fe; box-shadow:0 0 0 1px #0a66c2; }
+      .pp-type-btn-disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
+      .pp-toggle-disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
+      .pp-slider-disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
+      .pp-input-disabled { opacity:0.4; cursor:not-allowed; pointer-events:none; }
       .pp-type-emoji { font-size:18px; flex-shrink:0; }
       .pp-type-info { display:flex; flex-direction:column; gap:1px; }
       .pp-type-label { font-size:13px; font-weight:600; color:#333; }
       .pp-type-desc { font-size:11px; color:#666; line-height:1.3; }
       .pp-result { margin-top:12px; }
-      .pp-loading { display:flex; align-items:center; justify-content:center; gap:10px; padding:20px; color:#666; font-size:13px; }
-      .pp-spinner { width:20px; height:20px; border:2px solid #e0e0e0; border-top-color:#0a66c2; border-radius:50%; animation:ppSpin .8s linear infinite; }
-      @keyframes ppSpin { to { transform:rotate(360deg); } }
+      .pp-loading { padding:12px; }
+      .pp-skeleton { display:flex; flex-direction:column; gap:8px; }
+      .pp-skeleton-line { height:12px; border-radius:6px; background:linear-gradient(90deg, #e0e0e0 25%, #f0f0f0 50%, #e0e0e0 75%); background-size:200% 100%; animation:ppShimmer 1.5s infinite; }
+      .pp-skeleton-long { width:100%; }
+      .pp-skeleton-medium { width:75%; }
+      .pp-skeleton-short { width:45%; }
+      @keyframes ppShimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
       .pp-comment-box { margin-top:8px; }
       .pp-comment-text { background:#f8f9fa; border:1px solid #e0e0e0; border-radius:8px; padding:12px; font-size:13px; line-height:1.5; color:#333; margin:0 0 12px; white-space:pre-wrap; }
       .pp-resize-actions { display:flex; gap:8px; margin-bottom:8px; }
