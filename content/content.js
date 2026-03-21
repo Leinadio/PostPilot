@@ -134,8 +134,8 @@
             <button class="pp-voice-btn" data-voice="neutre">Neutre</button>
           </div>
           <div class="pp-polarity-toggle">
-            <button class="pp-polarity-btn selected" data-polarity="affirmative">Affirmative</button>
-            <button class="pp-polarity-btn" data-polarity="negative">Négative</button>
+            <button class="pp-polarity-btn selected" data-polarity="accord">Accord</button>
+            <button class="pp-polarity-btn" data-polarity="desaccord">Désaccord</button>
           </div>
         </div>
         <div class="pp-word-count">
@@ -191,7 +191,7 @@
 
     let currentType = null;
     let currentVoice = 'je';
-    let currentPolarity = 'affirmative';
+    let currentPolarity = 'accord';
     let currentWordCount = 30;
 
     const wordSlider = shadow.getElementById('pp-word-slider');
