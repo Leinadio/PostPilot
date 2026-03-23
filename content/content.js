@@ -129,10 +129,6 @@
           <button class="pp-close">&times;</button>
         </div>
         <div class="pp-toggles">
-          <div class="pp-voice-toggle">
-            <button class="pp-voice-btn selected" data-voice="je">Je</button>
-            <button class="pp-voice-btn" data-voice="neutre">Neutre</button>
-          </div>
           <div class="pp-polarity-toggle">
             <button class="pp-polarity-btn selected" data-polarity="accord">Accord</button>
             <button class="pp-polarity-btn" data-polarity="desaccord">Désaccord</button>
@@ -190,7 +186,6 @@
     `;
 
     let currentType = null;
-    let currentVoice = 'je';
     let currentPolarity = 'accord';
     let currentWordCount = 30;
 
@@ -230,20 +225,12 @@
         currentType = btn.dataset.type;
         shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent, currentVoice, currentPolarity, currentWordCount);
+        generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount);
       });
     });
 
     shadow.querySelector('.pp-close').addEventListener('click', () => {
       host.remove(); activePanel = null;
-    });
-
-    shadow.querySelectorAll('.pp-voice-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        currentVoice = btn.dataset.voice;
-        shadow.querySelectorAll('.pp-voice-btn').forEach(b => b.classList.remove('selected'));
-        btn.classList.add('selected');
-      });
     });
 
     shadow.querySelectorAll('.pp-polarity-btn').forEach(btn => {
@@ -255,7 +242,7 @@
     });
 
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity, currentWordCount);
+      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount);
     });
 
     shadow.getElementById('pp-shorter').addEventListener('click', () => {
@@ -275,27 +262,25 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentVoice, currentPolarity, currentWordCount);
+      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent, voice, polarity, wordCount) {
+  async function generateComment(shadow, type, postContent, polarity, wordCount) {
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
     const commentBox = shadow.getElementById('pp-comment-box');
     const errorBox = shadow.getElementById('pp-error');
 
     const allTypeBtns = shadow.querySelectorAll('.pp-type-btn');
-    const allVoiceBtns = shadow.querySelectorAll('.pp-voice-btn');
     const allPolarityBtns = shadow.querySelectorAll('.pp-polarity-btn');
     const wordSliderEl = shadow.getElementById('pp-word-slider');
     const wordInputEl = shadow.getElementById('pp-word-input');
 
     const disableAll = () => {
       allTypeBtns.forEach(b => { b.disabled = true; b.classList.add('pp-type-btn-disabled'); });
-      allVoiceBtns.forEach(b => { b.disabled = true; b.classList.add('pp-toggle-disabled'); });
       allPolarityBtns.forEach(b => { b.disabled = true; b.classList.add('pp-toggle-disabled'); });
       wordSliderEl.disabled = true; wordSliderEl.classList.add('pp-slider-disabled');
       wordInputEl.disabled = true; wordInputEl.classList.add('pp-input-disabled');
@@ -303,7 +288,6 @@
 
     const enableAll = () => {
       allTypeBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-type-btn-disabled'); });
-      allVoiceBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-toggle-disabled'); });
       allPolarityBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-toggle-disabled'); });
       wordSliderEl.disabled = false; wordSliderEl.classList.remove('pp-slider-disabled');
       wordInputEl.disabled = false; wordInputEl.classList.remove('pp-input-disabled');
@@ -317,7 +301,7 @@
     errorBox.style.display = 'none';
 
     const examples = await getExamplesForCategory(type);
-    const prompt = buildPrompt(type, postContent, voice, polarity, examples, wordCount);
+    const prompt = buildPrompt(type, postContent, polarity, examples, wordCount);
     if (!prompt) { enableAll(); return; }
 
     try {
@@ -461,10 +445,10 @@
       .pp-close { background:none; border:none; font-size:22px; color:#666; cursor:pointer; padding:4px 8px; border-radius:4px; }
       .pp-close:hover { background:#f3f3f3; }
       .pp-toggles { display:flex; gap:12px; margin-bottom:12px; }
-      .pp-voice-toggle, .pp-polarity-toggle { display:flex; gap:4px; }
-      .pp-voice-btn, .pp-polarity-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
-      .pp-voice-btn:hover, .pp-polarity-btn:hover { border-color:#0a66c2; color:#0a66c2; }
-      .pp-voice-btn.selected, .pp-polarity-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
+      .pp-polarity-toggle { display:flex; gap:4px; }
+      .pp-polarity-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
+      .pp-polarity-btn:hover { border-color:#0a66c2; color:#0a66c2; }
+      .pp-polarity-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
       .pp-word-count { margin-bottom:12px; }
       .pp-word-count-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
       .pp-word-count-header label { font-size:12px; font-weight:600; color:#333; }
