@@ -168,10 +168,6 @@
           </div>
           <div class="pp-comment-box" id="pp-comment-box" style="display:none;">
             <p class="pp-comment-text" id="pp-comment-text"></p>
-            <div class="pp-resize-actions">
-              <button class="pp-btn pp-btn-secondary pp-btn-small" id="pp-shorter">↓ Court</button>
-              <button class="pp-btn pp-btn-secondary pp-btn-small" id="pp-longer">↑ Long</button>
-            </div>
             <div class="pp-actions">
               <button class="pp-btn pp-btn-primary" id="pp-insert">Insérer le commentaire</button>
               <button class="pp-btn pp-btn-secondary" id="pp-regenerate">Régénérer</button>
@@ -245,16 +241,6 @@
       if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount);
     });
 
-    shadow.getElementById('pp-shorter').addEventListener('click', () => {
-      const comment = shadow.getElementById('pp-comment-text').textContent;
-      if (comment) resizeComment(shadow, 'shorter', comment);
-    });
-
-    shadow.getElementById('pp-longer').addEventListener('click', () => {
-      const comment = shadow.getElementById('pp-comment-text').textContent;
-      if (comment) resizeComment(shadow, 'longer', comment);
-    });
-
     shadow.getElementById('pp-insert').addEventListener('click', () => {
       const text = shadow.getElementById('pp-comment-text').textContent;
       insertComment(postCard, text);
@@ -323,40 +309,6 @@
     } catch (err) {
       loading.style.display = 'none';
       enableAll();
-      showError(shadow, err.message);
-    }
-  }
-
-  async function resizeComment(shadow, direction, comment) {
-    const loading = shadow.getElementById('pp-loading');
-    const commentBox = shadow.getElementById('pp-comment-box');
-    const errorBox = shadow.getElementById('pp-error');
-    const resultArea = shadow.getElementById('pp-result');
-
-    resultArea.style.display = 'block';
-    loading.style.display = 'flex';
-    commentBox.style.display = 'none';
-    errorBox.style.display = 'none';
-
-    const prompt = buildResizePrompt(direction, comment);
-
-    try {
-      const response = await chrome.runtime.sendMessage({
-        type: 'GENERATE_COMMENT',
-        payload: prompt
-      });
-
-      loading.style.display = 'none';
-
-      if (response.error) {
-        showError(shadow, response.error);
-        return;
-      }
-
-      shadow.getElementById('pp-comment-text').textContent = response.comment.replace(/\n\n+/g, '\n');
-      commentBox.style.display = 'block';
-    } catch (err) {
-      loading.style.display = 'none';
       showError(shadow, err.message);
     }
   }
@@ -481,8 +433,6 @@
       @keyframes ppShimmer { 0% { background-position:200% 0; } 100% { background-position:-200% 0; } }
       .pp-comment-box { margin-top:8px; }
       .pp-comment-text { background:#f8f9fa; border:1px solid #e0e0e0; border-radius:8px; padding:12px; font-size:13px; line-height:1.5; color:#333; margin:0 0 12px; white-space:pre-wrap; }
-      .pp-resize-actions { display:flex; gap:8px; margin-bottom:8px; }
-      .pp-btn-small { padding:4px 12px; font-size:12px; }
       .pp-actions { display:flex; gap:8px; }
       .pp-btn { padding:8px 16px; border-radius:20px; font-size:13px; font-weight:600; cursor:pointer; border:none; transition:all .15s; }
       .pp-btn-primary { background:#0a66c2; color:#fff; }
