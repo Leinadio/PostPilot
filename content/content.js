@@ -275,12 +275,14 @@
 
     const allTypeBtns = shadow.querySelectorAll('.pp-type-btn');
     const allPolarityBtns = shadow.querySelectorAll('.pp-polarity-btn');
+    const allVoiceBtns = shadow.querySelectorAll('.pp-voice-btn');
     const wordSliderEl = shadow.getElementById('pp-word-slider');
     const wordInputEl = shadow.getElementById('pp-word-input');
 
     const disableAll = () => {
       allTypeBtns.forEach(b => { b.disabled = true; b.classList.add('pp-type-btn-disabled'); });
       allPolarityBtns.forEach(b => { b.disabled = true; b.classList.add('pp-toggle-disabled'); });
+      allVoiceBtns.forEach(b => { b.disabled = true; b.classList.add('pp-toggle-disabled'); });
       wordSliderEl.disabled = true; wordSliderEl.classList.add('pp-slider-disabled');
       wordInputEl.disabled = true; wordInputEl.classList.add('pp-input-disabled');
     };
@@ -288,6 +290,7 @@
     const enableAll = () => {
       allTypeBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-type-btn-disabled'); });
       allPolarityBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-toggle-disabled'); });
+      allVoiceBtns.forEach(b => { b.disabled = false; b.classList.remove('pp-toggle-disabled'); });
       wordSliderEl.disabled = false; wordSliderEl.classList.remove('pp-slider-disabled');
       wordInputEl.disabled = false; wordInputEl.classList.remove('pp-input-disabled');
     };
@@ -414,6 +417,10 @@
       .pp-polarity-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
       .pp-polarity-btn:hover { border-color:#0a66c2; color:#0a66c2; }
       .pp-polarity-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
+      .pp-voice-toggle { display:flex; gap:4px; }
+      .pp-voice-btn { padding:6px 16px; border:1px solid #e0e0e0; border-radius:20px; background:#fafafa; cursor:pointer; font-size:12px; font-weight:600; color:#666; transition:all .15s; }
+      .pp-voice-btn:hover { border-color:#0a66c2; color:#0a66c2; }
+      .pp-voice-btn.selected { background:#0a66c2; color:#fff; border-color:#0a66c2; }
       .pp-word-count { margin-bottom:12px; }
       .pp-word-count-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; }
       .pp-word-count-header label { font-size:12px; font-weight:600; color:#333; }
