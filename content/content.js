@@ -293,7 +293,7 @@
     try {
       const response = await chrome.runtime.sendMessage({
         type: 'GENERATE_COMMENT',
-        payload: prompt
+        payload: { ...prompt, wordCount: wordCount }
       });
 
       loading.style.display = 'none';

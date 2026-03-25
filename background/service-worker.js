@@ -14,14 +14,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   }
 });
 
-async function handleGenerateComment({ system, user }) {
-  const result = await chrome.storage.local.get(['anthropic_api_key']);
-  const apiKey = result.anthropic_api_key;
+function countWords(text) {
+  return text.trim().split(/\s+/).filter(w => w.length > 0).length;
+}
 
-  if (!apiKey) {
-    throw new Error('API_KEY_MISSING');
-  }
-
+async function callAnthropic(apiKey, system, messages, wordCount) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -32,11 +29,10 @@ async function handleGenerateComment({ system, user }) {
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 300,
+      max_tokens: Math.max(300, (wordCount || 75) * 2),
+      temperature: 0.9,
       system: system,
-      messages: [
-        { role: 'user', content: user }
-      ]
+      messages: messages
     })
   });
 
@@ -55,5 +51,55 @@ async function handleGenerateComment({ system, user }) {
     throw new Error('No comment generated');
   }
 
-  return { comment };
+  return comment;
+}
+
+async function handleGenerateComment({ system, user, wordCount }) {
+  const result = await chrome.storage.local.get(['anthropic_api_key']);
+  const apiKey = result.anthropic_api_key;
+
+  if (!apiKey) {
+    throw new Error('API_KEY_MISSING');
+  }
+
+  const messages = [{ role: 'user', content: user }];
+  const firstComment = await callAnthropic(apiKey, system, messages, wordCount);
+
+  if (!wordCount || wordCount <= 0) {
+    return { comment: firstComment };
+  }
+
+  const minWords = Math.max(1, wordCount - 5);
+  const firstCount = countWords(firstComment);
+
+  console.log(`[PostPilot] Mots: ${firstCount} (cible: ${minWords}-${wordCount})`);
+
+  if (firstCount >= minWords && firstCount <= wordCount) {
+    return { comment: firstComment };
+  }
+
+  const direction = firstCount < minWords
+    ? `Ce commentaire fait ${firstCount} mots. Il en faut entre ${minWords} et ${wordCount}. Développe davantage pour atteindre ${wordCount} mots.`
+    : `Ce commentaire fait ${firstCount} mots. Le maximum est ${wordCount}. Raccourcis pour rester entre ${minWords} et ${wordCount} mots.`;
+
+  console.log(`[PostPilot] Retry: ${direction}`);
+
+  const retryMessages = [
+    { role: 'user', content: user },
+    { role: 'assistant', content: firstComment },
+    { role: 'user', content: direction + '\n\nRetourne UNIQUEMENT le commentaire corrigé. Rien d\'autre.' }
+  ];
+
+  const retryComment = await callAnthropic(apiKey, system, retryMessages, wordCount);
+  const retryCount = countWords(retryComment);
+
+  console.log(`[PostPilot] Retry mots: ${retryCount} (cible: ${minWords}-${wordCount})`);
+
+  if (retryCount >= minWords && retryCount <= wordCount) {
+    return { comment: retryComment };
+  }
+
+  const firstDiff = Math.abs(firstCount - wordCount);
+  const retryDiff = Math.abs(retryCount - wordCount);
+  return { comment: retryDiff <= firstDiff ? retryComment : firstComment };
 }
