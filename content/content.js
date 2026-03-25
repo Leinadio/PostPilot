@@ -226,7 +226,7 @@
         currentType = btn.dataset.type;
         shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount);
+        generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice);
       });
     });
 
@@ -251,7 +251,7 @@
     });
 
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount);
+      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice);
     });
 
     shadow.getElementById('pp-insert').addEventListener('click', () => {
@@ -261,13 +261,13 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount);
+      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent, polarity, wordCount) {
+  async function generateComment(shadow, type, postContent, polarity, wordCount, voice) {
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
     const commentBox = shadow.getElementById('pp-comment-box');
@@ -300,7 +300,7 @@
     errorBox.style.display = 'none';
 
     const examples = await getExamplesForCategory(type);
-    const prompt = buildPrompt(type, postContent, polarity, examples, wordCount);
+    const prompt = buildPrompt(type, postContent, polarity, examples, wordCount, voice);
     if (!prompt) { enableAll(); return; }
 
     try {
