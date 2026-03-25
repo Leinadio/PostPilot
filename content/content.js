@@ -133,6 +133,10 @@
             <button class="pp-polarity-btn selected" data-polarity="accord">Accord</button>
             <button class="pp-polarity-btn" data-polarity="desaccord">Désaccord</button>
           </div>
+          <div class="pp-voice-toggle">
+            <button class="pp-voice-btn selected" data-voice="neutre">Neutre</button>
+            <button class="pp-voice-btn" data-voice="je">Je</button>
+          </div>
         </div>
         <div class="pp-word-count">
           <div class="pp-word-count-header">
@@ -184,6 +188,7 @@
     let currentType = null;
     let currentPolarity = 'accord';
     let currentWordCount = 30;
+    let currentVoice = 'neutre';
 
     const wordSlider = shadow.getElementById('pp-word-slider');
     const wordInput = shadow.getElementById('pp-word-input');
@@ -233,6 +238,14 @@
       btn.addEventListener('click', () => {
         currentPolarity = btn.dataset.polarity;
         shadow.querySelectorAll('.pp-polarity-btn').forEach(b => b.classList.remove('selected'));
+        btn.classList.add('selected');
+      });
+    });
+
+    shadow.querySelectorAll('.pp-voice-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        currentVoice = btn.dataset.voice;
+        shadow.querySelectorAll('.pp-voice-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
       });
     });
