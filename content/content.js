@@ -7,19 +7,33 @@
 
   // --- Post Detection ---
 
+  function findPostContainer(menuBtn) {
+    // Walk up the DOM from the menu button to find the post container
+    // A valid container has a comment button AND text content (p or span[dir])
+    let el = menuBtn.parentElement;
+    for (let i = 0; i < 10; i++) {
+      if (!el) return null;
+      const hasCommentBtn = Array.from(el.querySelectorAll('button')).some(b => {
+        const t = b.textContent.trim();
+        return t === 'Commenter' || t === 'Comment';
+      });
+      const hasText = el.querySelector('p:not(a p):not(button p)') ||
+                      Array.from(el.querySelectorAll('span[dir]')).some(s =>
+                        s.textContent.trim().length > 20 && !s.closest('button') && !s.closest('a')
+                      );
+      if (hasCommentBtn && hasText) return el;
+      el = el.parentElement;
+    }
+    return null;
+  }
+
   function findPosts() {
     const menuButtons = document.querySelectorAll('button[aria-label*="menu de commandes pour le post"], button[aria-label*="control menu for post"]');
 
     let count = 0;
     menuButtons.forEach(menuBtn => {
-      const postCard = menuBtn.parentElement?.parentElement;
+      const postCard = findPostContainer(menuBtn);
       if (!postCard || postCard.getAttribute(PROCESSED_ATTR)) return;
-
-      const hasText = postCard.querySelector('p');
-      const hasActionBtn = Array.from(postCard.querySelectorAll('button')).some(b =>
-        b.textContent.trim() === 'Commenter' || b.textContent.trim() === 'Comment'
-      );
-      if (!hasText && !hasActionBtn) return;
 
       postCard.setAttribute(PROCESSED_ATTR, 'true');
       injectButton(postCard);
@@ -32,25 +46,76 @@
   // --- Extract Post Text ---
 
   function extractPostContent(postCard) {
+    // Strategy 1: Collect ALL paragraphs (not just the biggest one)
     const pTags = postCard.querySelectorAll('p');
-    let bestText = null;
-    let bestLen = 0;
+    const paragraphs = [];
 
     for (const p of pTags) {
       if (p.closest('a') || p.closest('button')) continue;
       const text = p.textContent.trim();
-      if (text.length > bestLen) { bestLen = text.length; bestText = text; }
+      if (text.length > 5) paragraphs.push(text);
     }
 
-    if (bestText && bestLen > 20) return bestText;
+    if (paragraphs.length > 0) {
+      const fullText = paragraphs.join('\n\n');
+      if (fullText.length > 20) return fullText;
+    }
 
+    // Strategy 2: Fallback to span[dir] elements
     const spans = postCard.querySelectorAll('span[dir]');
+    const spanTexts = [];
     for (const s of spans) {
+      if (s.closest('button') || s.closest('a')) continue;
       const text = s.textContent.trim();
-      if (text.length > 20 && !s.closest('button') && !s.closest('a')) return text;
+      if (text.length > 5) spanTexts.push(text);
+    }
+
+    if (spanTexts.length > 0) {
+      const fullText = spanTexts.join('\n\n');
+      if (fullText.length > 20) return fullText;
     }
 
     return null;
+  }
+
+  // --- Extract Author Context ---
+
+  function extractAuthorInfo(postCard) {
+    const info = { name: null, headline: null };
+
+    // Author name: typically in a span inside a link with strong styling
+    const actorLink = postCard.querySelector('a[data-test-app-aware-link] span[dir="ltr"] span[aria-hidden="true"]');
+    if (actorLink) {
+      info.name = actorLink.textContent.trim();
+    }
+
+    // Fallback: look for the first strong/bold text in a link
+    if (!info.name) {
+      const nameEl = postCard.querySelector('.update-components-actor__name span[dir="ltr"]') ||
+                     postCard.querySelector('a span.visually-hidden');
+      if (nameEl) info.name = nameEl.textContent.trim().replace(/^Voir le profil de\s*/i, '').replace(/^View\s*/i, '');
+    }
+
+    // Headline: author description below name
+    const headlineEl = postCard.querySelector('.update-components-actor__description span[dir="ltr"]') ||
+                       postCard.querySelector('.update-components-actor__supplementary-actor-info span[dir="ltr"]');
+    if (headlineEl) {
+      info.headline = headlineEl.textContent.trim();
+    }
+
+    // Fallback: look for secondary text near the author area
+    if (!info.headline) {
+      const descSpans = postCard.querySelectorAll('span.visually-hidden');
+      for (const s of descSpans) {
+        const text = s.textContent.trim();
+        if (text.length > 10 && text.length < 200 && !text.includes('menu') && !text.includes('Commenter')) {
+          info.headline = text;
+          break;
+        }
+      }
+    }
+
+    return (info.name || info.headline) ? info : null;
   }
 
   // --- Button Injection ---
@@ -109,14 +174,16 @@
         return;
       }
 
+      const authorInfo = extractAuthorInfo(postCard);
       log('Post:', postContent.substring(0, 80) + '...');
-      const panel = createPanel(postContent, postCard);
+      if (authorInfo) log('Author:', authorInfo.name, '|', authorInfo.headline);
+      const panel = createPanel(postContent, postCard, authorInfo);
       postCard.appendChild(panel);
       activePanel = panel;
     }, seeMoreBtn ? 300 : 0);
   }
 
-  function createPanel(postContent, postCard) {
+  function createPanel(postContent, postCard, authorInfo) {
     const host = document.createElement('div');
     host.className = 'postpilot-panel-host';
     const shadow = host.attachShadow({ mode: 'open' });
@@ -226,7 +293,7 @@
         currentType = btn.dataset.type;
         shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice);
+        generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
       });
     });
 
@@ -251,7 +318,7 @@
     });
 
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice);
+      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
     });
 
     shadow.getElementById('pp-insert').addEventListener('click', () => {
@@ -261,13 +328,13 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice);
+      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent, polarity, wordCount, voice) {
+  async function generateComment(shadow, type, postContent, polarity, wordCount, voice, authorInfo) {
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
     const commentBox = shadow.getElementById('pp-comment-box');
@@ -303,7 +370,7 @@
     errorBox.style.display = 'none';
 
     const examples = await getExamplesForCategory(type);
-    const prompt = buildPrompt(type, postContent, polarity, examples, wordCount, voice);
+    const prompt = buildPrompt(type, postContent, polarity, examples, wordCount, voice, authorInfo);
     if (!prompt) { enableAll(); return; }
 
     try {
