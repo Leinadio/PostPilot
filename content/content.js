@@ -214,20 +214,15 @@
           <div class="pp-word-label" id="pp-word-label">Sweet spot — meilleur ratio engagement/effort</div>
         </div>
         <div class="pp-types" id="pp-types">
-          ${PILIER_ORDER.map(pilier => {
-            const entries = Object.entries(COMMENT_CATEGORIES).filter(([_, c]) => c.pilier === pilier);
-            if (!entries.length) return '';
-            return `<div class="pp-pilier-label">${PILIER_LABELS[pilier]}</div>` +
-              entries.map(([key, category]) => `
-                <button class="pp-type-btn" data-type="${key}">
-                  <span class="pp-type-emoji">${category.emoji}</span>
-                  <span class="pp-type-info">
-                    <span class="pp-type-label">${category.label}</span>
-                    <span class="pp-type-desc">${category.description}</span>
-                  </span>
-                </button>
-              `).join('');
-          }).join('')}
+          ${Object.entries(CATEGORIES).map(([key, cat]) => `
+            <button class="pp-type-btn" data-type="${key}">
+              <span class="pp-type-emoji">${cat.emoji}</span>
+              <span class="pp-type-info">
+                <span class="pp-type-label">${cat.label}</span>
+                <span class="pp-type-desc">${cat.description}</span>
+              </span>
+            </button>
+          `).join('')}
         </div>
         <div class="pp-result" id="pp-result" style="display:none;">
           <div class="pp-loading" id="pp-loading">
@@ -252,7 +247,7 @@
       </div>
     `;
 
-    let currentType = null;
+    let currentCategory = null;
     let currentPolarity = 'accord';
     let currentWordCount = 30;
     let currentVoice = 'neutre';
@@ -280,20 +275,12 @@
     wordSlider.addEventListener('input', () => updateWordCount(wordSlider.value));
     wordInput.addEventListener('input', () => updateWordCount(wordInput.value));
 
-    // Set default from examples avg
-    getExamplesForCategory(null).then(examples => {
-      if (examples && examples.length > 0) {
-        var stats = getExamplesWordStats(examples);
-        updateWordCount(stats.avg);
-      }
-    });
-
     shadow.querySelectorAll('.pp-type-btn').forEach(btn => {
       btn.addEventListener('click', () => {
-        currentType = btn.dataset.type;
+        currentCategory = btn.dataset.type;
         shadow.querySelectorAll('.pp-type-btn').forEach(b => b.classList.remove('selected'));
         btn.classList.add('selected');
-        generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
+        generateComment(shadow, currentCategory, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
       });
     });
 
@@ -318,7 +305,7 @@
     });
 
     shadow.getElementById('pp-regenerate').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
+      if (currentCategory) generateComment(shadow, currentCategory, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
     });
 
     shadow.getElementById('pp-insert').addEventListener('click', () => {
@@ -328,13 +315,13 @@
     });
 
     shadow.getElementById('pp-retry').addEventListener('click', () => {
-      if (currentType) generateComment(shadow, currentType, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
+      if (currentCategory) generateComment(shadow, currentCategory, postContent, currentPolarity, currentWordCount, currentVoice, authorInfo);
     });
 
     return host;
   }
 
-  async function generateComment(shadow, type, postContent, polarity, wordCount, voice, authorInfo) {
+  async function generateComment(shadow, category, postContent, polarity, wordCount, voice, authorInfo) {
     const resultArea = shadow.getElementById('pp-result');
     const loading = shadow.getElementById('pp-loading');
     const commentBox = shadow.getElementById('pp-comment-box');
@@ -369,8 +356,8 @@
     commentBox.style.display = 'none';
     errorBox.style.display = 'none';
 
-    const examples = await getExamplesForCategory(type);
-    const prompt = buildPrompt(type, postContent, polarity, examples, wordCount, voice, authorInfo);
+    const examples = await fetchAllExamples();
+    const prompt = buildPrompt(postContent, category, polarity, examples, wordCount, voice, authorInfo);
     if (!prompt) { enableAll(); return; }
 
     try {
@@ -496,8 +483,6 @@
       .pp-word-slider { width:100%; height:4px; -webkit-appearance:none; appearance:none; background:#e0e0e0; border-radius:2px; outline:none; cursor:pointer; }
       .pp-word-slider::-webkit-slider-thumb { -webkit-appearance:none; appearance:none; width:16px; height:16px; border-radius:50%; background:#0a66c2; cursor:pointer; border:2px solid #fff; box-shadow:0 1px 3px rgba(0,0,0,.2); }
       .pp-word-label { font-size:11px; color:#666; margin-top:4px; font-style:italic; }
-      .pp-pilier-label { font-size:11px; font-weight:700; color:#0a66c2; text-transform:uppercase; letter-spacing:0.5px; margin:12px 0 6px; }
-      .pp-pilier-label:first-child { margin-top:0; }
       .pp-types { display:flex; flex-direction:column; gap:6px; }
       .pp-type-btn { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1px solid #e0e0e0; border-radius:8px; background:#fafafa; cursor:pointer; transition:all .15s; text-align:left; }
       .pp-type-btn:hover:not(.pp-type-btn-disabled) { border-color:#0a66c2; background:#f0f7ff; }
