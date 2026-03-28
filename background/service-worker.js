@@ -18,7 +18,7 @@ function countWords(text) {
   return text.trim().split(/\s+/).filter(w => w.length > 0).length;
 }
 
-async function callAnthropic(apiKey, system, messages, wordCount) {
+async function callAnthropic(apiKey, model, system, messages, wordCount) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -28,7 +28,7 @@ async function callAnthropic(apiKey, system, messages, wordCount) {
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: model,
       max_tokens: Math.max(300, (wordCount || 75) * 2),
       temperature: 0.9,
       system: system,
@@ -55,15 +55,16 @@ async function callAnthropic(apiKey, system, messages, wordCount) {
 }
 
 async function handleGenerateComment({ system, user, wordCount }) {
-  const result = await chrome.storage.local.get(['anthropic_api_key']);
+  const result = await chrome.storage.local.get(['anthropic_api_key', 'anthropic_model']);
   const apiKey = result.anthropic_api_key;
+  const model = result.anthropic_model || 'claude-sonnet-4-20250514';
 
   if (!apiKey) {
     throw new Error('API_KEY_MISSING');
   }
 
   const messages = [{ role: 'user', content: user }];
-  const firstComment = await callAnthropic(apiKey, system, messages, wordCount);
+  const firstComment = await callAnthropic(apiKey, model, system, messages, wordCount);
 
   if (!wordCount || wordCount <= 0) {
     return { comment: firstComment };
@@ -90,7 +91,7 @@ async function handleGenerateComment({ system, user, wordCount }) {
     { role: 'user', content: direction + '\n\nRetourne UNIQUEMENT le commentaire corrigé. Rien d\'autre.' }
   ];
 
-  const retryComment = await callAnthropic(apiKey, system, retryMessages, wordCount);
+  const retryComment = await callAnthropic(apiKey, model, system, retryMessages, wordCount);
   const retryCount = countWords(retryComment);
 
   console.log(`[PostPilot] Retry mots: ${retryCount} (cible: ${minWords}-${wordCount})`);

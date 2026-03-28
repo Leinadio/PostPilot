@@ -1,13 +1,17 @@
 const apiKeyInput = document.getElementById('api-key');
+const modelSelect = document.getElementById('model-select');
 const form = document.getElementById('settings-form');
 const status = document.getElementById('status');
 const toggleBtn = document.getElementById('toggle-visibility');
 
-// Load saved key
-chrome.storage.local.get(['anthropic_api_key'], (result) => {
+// Load saved settings
+chrome.storage.local.get(['anthropic_api_key', 'anthropic_model'], (result) => {
   if (result.anthropic_api_key) {
     apiKeyInput.value = result.anthropic_api_key;
     showStatus('Clé API configurée.', 'success');
+  }
+  if (result.anthropic_model) {
+    modelSelect.value = result.anthropic_model;
   }
 });
 
@@ -31,8 +35,8 @@ form.addEventListener('submit', (e) => {
     return;
   }
 
-  chrome.storage.local.set({ anthropic_api_key: key }, () => {
-    showStatus('Clé sauvegardée avec succès !', 'success');
+  chrome.storage.local.set({ anthropic_api_key: key, anthropic_model: modelSelect.value }, () => {
+    showStatus('Paramètres sauvegardés !', 'success');
   });
 });
 
